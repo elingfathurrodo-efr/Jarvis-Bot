@@ -1,3 +1,4 @@
-pyTelegramBotAPI
+pytelegrambotapi
 google-generativeai
 metaapi-cloud-sdk
+asyncio
