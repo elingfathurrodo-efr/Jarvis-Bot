@@ -18,7 +18,7 @@ MT5_PASSWORD = "Yoi12345#"
 
 # --- 2. KONFIGURASI ---
 genai.configure(api_key=GEMINI_API_KEY)
-model = genai.GenerativeModel('gemini-pro')
+model = genai.GenerativeModel('gemini-1.5-flash') # Ganti ke model yang lebih pintar
 bot = telebot.TeleBot(TELEGRAM_TOKEN)
 api = MetaApi(META_API_TOKEN)
 
@@ -29,65 +29,51 @@ async def hunter_engine():
         connection = account.get_rpc_connection()
         await connection.connect()
         await connection.wait_synchronized()
-        
-        print("🚀 JARVIS: Mesin Hunter Aktif. Memantau Gold...")
+        print("🚀 JARVIS: Mesin Hunter Aktif!")
         
         while True:
-            # Ambil data saldo & harga rill
             account_info = await connection.get_account_information()
             balance = account_info['balance']
-            
-            # PROTEKSI: Jika target 1200 tercapai, STOP.
             if balance >= 1200:
-                print("🎯 Target 1200 Cent Tercapai! Menghentikan semua aktivitas.")
+                print("🎯 Target Tercapai!")
                 break
-            
-            # LOGIKA ENTRY NYATA: Jarvis mencari peluang Scalping
-            # Disini Jarvis akan mengeksekusi order jika kondisi market sesuai
-            # await connection.create_market_order('XAUUSD', 'BUY', 0.01)
-            
-            await asyncio.sleep(20) # Pantau market setiap 20 detik
+            await asyncio.sleep(20)
     except Exception as e:
         print(f"Mesin Error: {e}")
 
-async def get_balance():
+async def get_balance_real():
     try:
         account = await api.metatrader_account_api.get_account(META_ACCOUNT_ID)
         connection = account.get_rpc_connection()
         await connection.connect()
-        await connection.wait_synchronized()
         info = await connection.get_account_information()
         return info['balance']
     except:
-        return "Error"
+        return "Gagal ambil data"
 
-# --- 4. TELEGRAM HANDLER ---
-@bot.message_handler(commands=['start', 'cek', 'profit', 'saldo'])
-def send_report(message):
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
-    current_balance = loop.run_until_complete(get_balance())
-    
-    teks = (
-        "⚔️ **JARVIS MODE TEMPUR (ELINO)** ⚔️\n"
-        "---------------------------\n"
-        f"💰 Saldo Rill: {current_balance} cent\n"
-        f"🎯 Target: 1200 cent\n"
-        f"👤 Akun: {MT5_ACCOUNT_ID}\n"
-        "📈 Status: Berburu Gold (Live Entry Ready)"
-    )
-    bot.reply_to(message, teks, parse_mode="Markdown")
-
+# --- 4. TELEGRAM HANDLER (AI + COMMAND) ---
 @bot.message_handler(func=lambda message: True)
-def chat_ai(message):
-    try:
-        prompt = f"Kamu adalah Jarvis, asisten trading Bos Elino. Jawab bos dengan setia: {message.text}"
-        response = model.generate_content(prompt)
-        bot.reply_to(message, response.text)
-    except:
-        bot.reply_to(message, "Lagi fokus jagain nyawa akun, Bos!")
+def handle_messages(message):
+    msg = message.text.lower()
+    
+    # Deteksi bahasa manusia untuk cek saldo (tanpa /)
+    if any(x in msg for x in ["saldo", "cek", "berapa"]):
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        balance = loop.run_until_complete(get_balance_real())
+        response_text = f"⚔️ **LAPORAN KHUSUS BOS ELINO** ⚔️\n💰 Saldo: {balance} cent\n🎯 Target: 1200 cent\n🛡️ Status: Aman & Berburu!"
+        bot.reply_to(message, response_text, parse_mode="Markdown")
+        
+    else:
+        # Menjawab pertanyaan RANDOM dengan AI Gemini
+        try:
+            # Kita beri instruksi agar dia lebih manusiawi
+            prompt = f"Kamu adalah Jarvis, AI asisten Elino. Kamu pintar, loyal, dan bisa menjawab apa saja dari internet. Jawab bos dengan santai: {message.text}"
+            response = model.generate_content(prompt)
+            bot.reply_to(message, response.text)
+        except:
+            bot.reply_to(message, "Aduh Bos, otak AI saya lagi refresh sebentar. Tapi tenang, saldo aman!")
 
 if __name__ == "__main__":
-    # Menjalankan mesin hunter di background
     threading.Thread(target=lambda: asyncio.run(hunter_engine())).start()
     bot.polling()
