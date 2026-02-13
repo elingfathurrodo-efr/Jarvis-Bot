@@ -15,12 +15,12 @@ MT5_PASSWORD = "Yoi12345#"
 
 # --- 2. KONFIGURASI ---
 genai.configure(api_key=GEMINI_API_KEY)
-# Menggunakan model gemini-1.5-flash agar lebih responsif
+# Menggunakan model gemini-1.5-flash agar lebih responsif dan cerdas
 model = genai.GenerativeModel('gemini-1.5-flash')
 bot = telebot.TeleBot(TELEGRAM_TOKEN)
 api = MetaApi(META_API_TOKEN)
 
-# --- 3. FUNGSI TRADING & PROTEKSI SALDO ---
+# --- 3. FUNGSI INTI: HUNTER & PROTECTION ---
 async def hunter_engine():
     try:
         account = await api.metatrader_account_api.get_account(META_ACCOUNT_ID)
@@ -30,17 +30,13 @@ async def hunter_engine():
         print("🚀 JARVIS: Hunter Engine Aktif!")
         
         while True:
-            # Proteksi: Pantau saldo rill agar tidak ludes
             account_info = await connection.get_account_information()
             balance = account_info['balance']
             
-            # Target 1200 cent
+            # Target 1200 cent otomatis berhenti
             if balance >= 1200:
-                print("🎯 Target Tercapai! Stop berburu.")
+                print("🎯 Target 1200 Cent Tercapai! Berhenti.")
                 break
-            
-            # Di sini Jarvis bisa melakukan Entry otomatis jika ada peluang
-            # await connection.create_market_order('XAUUSD', 'BUY', 0.01)
             
             await asyncio.sleep(20)
     except Exception as e:
@@ -51,38 +47,45 @@ async def get_balance_real():
         account = await api.metatrader_account_api.get_account(META_ACCOUNT_ID)
         connection = account.get_rpc_connection()
         await connection.connect()
+        await connection.wait_synchronized()
         info = await connection.get_account_information()
         return info['balance']
     except:
-        return "Gagal sinkron"
+        return "Gagal Sinkron"
 
-# --- 4. TELEGRAM HANDLER (AI PINTAR) ---
+# --- 4. TELEGRAM HANDLER (AI PINTAR TANPA /) ---
 @bot.message_handler(func=lambda message: True)
 def main_handler(message):
     msg = message.text.lower()
     
-    # Deteksi Pertanyaan Saldo Otomatis
-    if any(keyword in msg for keyword in ["saldo", "cek", "berapa"]):
+    # Deteksi Pertanyaan Saldo (Bahasa Manusia Biasa)
+    if any(keyword in msg for keyword in ["saldo", "cek", "berapa", "nyawa"]):
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
         balance = loop.run_until_complete(get_balance_real())
+        
         teks = (
-            f"⚔️ **LAPORAN PERINTAH ELINO** ⚔️\n"
-            f"💰 Saldo: {balance} cent\n"
+            f"⚔️ **LAPORAN KHUSUS BOS ELINO** ⚔️\n"
+            f"---------------------------\n"
+            f"💰 Saldo Rill: {balance} cent\n"
             f"🎯 Target: 1200 cent\n"
-            f"🛡️ Status: Berburu Gold (Real-Time)"
+            f"🛡️ Status: Berburu Gold (Live)"
         )
         bot.reply_to(message, teks, parse_mode="Markdown")
         
     else:
-        # Menjawab segala pertanyaan random dengan kecerdasan Gemini
+        # Menjawab pertanyaan random dengan kecerdasan Gemini 1.5
         try:
-            prompt = f"Kamu adalah Jarvis, AI asisten Elino yang loyal dan sangat cerdas. Jawab pertanyaan bos dengan gaya yang membantu dan tidak kaku: {message.text}"
+            prompt = f"Kamu adalah Jarvis, AI asisten Elino yang loyal dan sangat cerdas. Jawab bos dengan gaya yang membantu dan keren: {message.text}"
             response = model.generate_content(prompt)
             bot.reply_to(message, response.text)
         except:
-            bot.reply_to(message, "Otak AI sedang memproses data market, silakan tanya lagi sedetik kemudian!")
+            # Jika Gemini gagal koneksi, berikan pesan yang tidak kaku
+            bot.reply_to(message, "Aduh Bos, otak AI saya lagi refresh sebentar. Tapi tenang, saldo aman!")
 
 if __name__ == "__main__":
-    threading.Thread(target=lambda: asyncio.run(hunter_engine())).start()
-    bot.polling()
+    # Menjalankan mesin hunter di background thread
+    t = threading.Thread(target=lambda: asyncio.run(hunter_engine()))
+    t.daemon = True
+    t.start()
+    bot.polling(none_stop=True)
